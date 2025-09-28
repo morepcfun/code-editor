@@ -456,25 +456,37 @@ editor.addEventListener('keydown', function(e) {
     const end = this.selectionEnd;
 
     if (!e.ctrlKey && !e.altKey) {
-        let closingChar = '';
-        if (e.key === '(') closingChar = ')';
-        else if (e.key === '{') closingChar = '}';
-        else if (e.key === '[') closingChar = ']';
-        else if (e.key === '/') {
+        const key = e.key;
+        
+        if (key === '{') {
+            e.preventDefault();
+            const textToInsert = '{\n\n}';
+            this.setRangeText(textToInsert, start, end, 'end');
+            const newCursorPos = this.selectionStart - 2; // "  " + "\n" + "}" = 3 chars
+            this.setSelectionRange(newCursorPos, newCursorPos);
+            return;
+        }
+
+        const bracketMap = { '(': ')', '[': ']' };
+        if (bracketMap[key]) {
+            e.preventDefault();
+            this.setRangeText(bracketMap[key], start, end, 'start');
+            return;
+        }
+        
+        if (key === '/') {
             if (this.value.substring(start - 1, start) === '<') {
                 const textBefore = this.value.substring(0, start - 1);
                 const openTags = (textBefore.match(/<([a-zA-Z0-9]+)/g) || []).map(tag => tag.substring(1));
                 const closeTags = (textBefore.match(/<\/([a-zA-Z0-9]+)>/g) || []).map(tag => tag.substring(2, tag.length - 1));
                 const stack = [];
                 const selfClosingTags = new Set(['br', 'hr', 'img', 'input', 'meta', 'link']);
-
                 for (const tag of openTags) {
                     if (!selfClosingTags.has(tag)) stack.push(tag);
                 }
                 for (const tag of closeTags) {
                     if (stack.length > 0 && stack[stack.length - 1] === tag) stack.pop();
                 }
-                
                 if (stack.length > 0) {
                     const tagToClose = stack.pop();
                     e.preventDefault();
@@ -482,24 +494,22 @@ editor.addEventListener('keydown', function(e) {
                     return;
                 }
             }
-        } else if (e.key === '>') {
+        }
+        
+        if (key === '>') {
              const textBefore = this.value.substring(0, start);
              const tagMatch = textBefore.match(/<([a-zA-Z0-9]+)[^>]*$/);
              const selfClosingTags = new Set(['br', 'hr', 'img', 'input', 'meta', 'link']);
              if (tagMatch && !textBefore.endsWith('/') && !selfClosingTags.has(tagMatch[1])) {
                 const tagName = tagMatch[1];
-                const textToInsert = `></${tagName}>`;
+                const closingTag = `</${tagName}>`;
+                const textToInsert = `>${closingTag}`;
                 e.preventDefault();
                 this.setRangeText(textToInsert, start, end, 'end');
-                const newCursorPos = this.selectionStart - (`</${tagName}>`).length;
+                const newCursorPos = this.selectionStart - closingTag.length;
                 this.setSelectionRange(newCursorPos, newCursorPos);
                 return;
              }
-        }
-        
-        if (closingChar) {
-            e.preventDefault();
-            this.setRangeText(closingChar, start, end, 'start');
         }
     }
 
