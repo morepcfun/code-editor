@@ -25,16 +25,10 @@ html, body {
     font-family: var(--font-mono);
     overflow: hidden;
 }
-.main-container {
+.editor-container {
     display: flex;
     height: 100vh;
     width: 100vw;
-}
-.editor-wrapper {
-    flex: 1;
-    display: flex;
-    height: 100%;
-    min-width: 0;
 }
 #line-numbers {
     width: 50px;
@@ -70,18 +64,6 @@ textarea#editor {
 }
 textarea::selection {
     background-color: var(--selection-bg);
-}
-#preview-panel {
-    flex: 1;
-    height: 100%;
-    border-left: 1px solid var(--border-color);
-    display: none;
-}
-#preview-frame {
-    width: 100%;
-    height: 100%;
-    border: none;
-    background-color: #fff;
 }
 .modal {
     display: none; position: fixed; top: 50%; left: 50%;
@@ -126,14 +108,9 @@ textarea::selection {
 </head>
 <body>
 
-<div class="main-container">
-    <div class="editor-wrapper">
-        <div id="line-numbers">1</div>
-        <textarea id="editor" spellcheck="false" autofocus=""></textarea>
-    </div>
-    <div id="preview-panel">
-        <iframe id="preview-frame" title="Live Preview" sandbox="allow-scripts allow-same-origin"></iframe>
-    </div>
+<div class="editor-container">
+    <div id="line-numbers">1</div>
+    <textarea id="editor" spellcheck="false" autofocus=""></textarea>
 </div>
 
 <div id="help-modal" class="modal">
@@ -179,11 +156,9 @@ const lang = {
     helpIndent: "Indent",
     helpOutdent: "Outdent",
     helpNewTab: "Open in New Tab",
-    helpPreview: "Toggle Live Preview",
     helpJumpStyle: "Jump to &lt;style&gt;",
     helpJumpScript: "Jump to &lt;script&gt;",
     helpJumpBody: "Jump to &lt;body&gt;",
-    restoreSession: "An unsaved session was found. Do you want to restore it?",
     searchTitle: "Search & Replace",
     findLabel: "Find:",
     replaceLabel: "Replace with:",
@@ -212,17 +187,12 @@ const findNextBtn = document.getElementById('find-next-btn');
 const replaceBtn = document.getElementById('replace-btn');
 const replaceAllBtn = document.getElementById('replace-all-btn');
 const matchCountSpan = document.getElementById('match-count');
-const previewPanel = document.getElementById('preview-panel');
-const previewFrame = document.getElementById('preview-frame');
 
-const AUTOSAVE_KEY = 'autosave-content';
 let currentFileHandle = null;
 let currentFileName = lang.untitled;
 let hasUnsavedChanges = false;
 let searchResults = { term: '', indices: [], currentIndex: -1 };
 let lineNumberUpdateTimer = null;
-let previewUpdateTimer = null;
-let autoSaveTimer = null;
 
 function updateLineNumbers() {
     const lineCount = editor.value.split('\n').length;
@@ -235,19 +205,6 @@ function debouncedUpdateLineNumbers() {
     lineNumberUpdateTimer = setTimeout(updateLineNumbers, 100);
 }
 
-function autoSave() {
-    localStorage.setItem(AUTOSAVE_KEY, editor.value);
-}
-
-function debouncedAutoSave() {
-    clearTimeout(autoSaveTimer);
-    autoSaveTimer = setTimeout(autoSave, 1000);
-}
-
-function clearAutoSave() {
-    localStorage.removeItem(AUTOSAVE_KEY);
-}
-
 async function openFile() {
     if (hasUnsavedChanges && !confirm(lang.unsavedChangesLost)) return;
     if (!('showOpenFilePicker' in window)) return alert(lang.unsupportedApi);
@@ -256,9 +213,7 @@ async function openFile() {
         currentFileHandle = fileHandle;
         const file = await fileHandle.getFile();
         editor.value = await file.text();
-        clearAutoSave();
         updateLineNumbers();
-        debouncedUpdatePreview();
         editor.scrollTop = 0;
         editor.setSelectionRange(0, 0);
         currentFileName = file.name;
@@ -274,9 +229,7 @@ function newFile() {
     currentFileName = lang.untitled;
     document.title = currentFileName;
     hasUnsavedChanges = false;
-    clearAutoSave();
     updateLineNumbers();
-    debouncedUpdatePreview();
     editor.focus();
 }
 
@@ -304,25 +257,7 @@ async function saveFile() {
         await writable.close();
         hasUnsavedChanges = false;
         document.title = currentFileName;
-        clearAutoSave();
     } catch (err) { console.error('Could not save file:', err); alert(lang.saveError); }
-}
-
-function updatePreview() {
-    previewFrame.srcdoc = editor.value;
-}
-
-function debouncedUpdatePreview() {
-    clearTimeout(previewUpdateTimer);
-    previewUpdateTimer = setTimeout(updatePreview, 250);
-}
-
-function togglePreview() {
-    const isVisible = previewPanel.style.display === 'block';
-    previewPanel.style.display = isVisible ? 'none' : 'block';
-    if (!isVisible) {
-        updatePreview();
-    }
 }
 
 function jumpToSection(tagName) {
@@ -441,7 +376,6 @@ function updateStaticUIText() {
         <li><strong>Ctrl + Shift + 2</strong> ${lang.helpJumpScript}</li>
         <li><strong>Ctrl + Shift + 3</strong> ${lang.helpJumpBody}</li>
         <hr style="border-color: ${getComputedStyle(document.documentElement).getPropertyValue('--border-color').trim()}; margin: 10px 0;">
-        <li><strong>Alt + P</strong> ${lang.helpPreview}</li>
         <li><strong>Alt + T</strong> ${lang.helpNewTab}</li>
         <li><strong>Tab</strong> ${lang.helpIndent}</li>
         <li><strong>Shift + Tab</strong> ${lang.helpOutdent}</li>
@@ -474,8 +408,6 @@ editor.addEventListener('input', () => {
     }
     searchResults.term = null;
     debouncedUpdateLineNumbers();
-    debouncedUpdatePreview();
-    debouncedAutoSave();
 });
 
 editor.addEventListener('keydown', function(e) {
@@ -511,14 +443,12 @@ document.addEventListener('keydown', function(e) {
     const isCtrl = e.ctrlKey || e.metaKey;
     const key = e.key.toLowerCase();
     
-    // Global toggles that should always work
     if (e.altKey && key === 'h') { 
         e.preventDefault(); 
         toggleHelp(); 
         return; 
     }
 
-    // Modal-specific logic
     if (searchModal.style.display === 'block' || helpModal.style.display === 'block') {
         if (key === 'escape') {
             e.preventDefault();
@@ -532,7 +462,6 @@ document.addEventListener('keydown', function(e) {
         return;
     }
 
-    // Editor-specific shortcuts
     if (isCtrl && e.shiftKey) {
         if (e.code === 'Digit1') { e.preventDefault(); jumpToSection('style'); }
         if (e.code === 'Digit2') { e.preventDefault(); jumpToSection('script'); }
@@ -543,22 +472,13 @@ document.addEventListener('keydown', function(e) {
     if (isCtrl && key === 's') { e.preventDefault(); saveFile(); }
     if (isCtrl && key === 'o') { e.preventDefault(); openFile(); }
     if (e.altKey && key === 't') { e.preventDefault(); window.open(window.location.href, '_blank'); }
-    if (e.altKey && key === 'p') { e.preventDefault(); togglePreview(); }
     if (e.altKey && key === 'n') { e.preventDefault(); newFile(); }
     if (e.altKey && key === 'f') { e.preventDefault(); toggleSearch(); }
 });
 
 window.addEventListener('load', () => {
-    const savedContent = localStorage.getItem(AUTOSAVE_KEY);
-    if (savedContent) {
-        if (confirm(lang.restoreSession)) {
-            editor.value = savedContent;
-        }
-    }
-    
     updateStaticUIText();
     updateLineNumbers();
-    debouncedUpdatePreview();
     editor.focus();
 });
 
