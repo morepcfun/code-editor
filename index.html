@@ -319,7 +319,6 @@ const CodeEditor = {
         this._modifyContent(/^\s*$\r?\n/gm, '');
     },
 
-    // MODIFIED: This function is now 100% safe
     removeEmptyLines() {
         const editor = this.elements.editor;
         const originalValue = editor.value;
@@ -328,25 +327,14 @@ const CodeEditor = {
         const scriptTagStart = originalValue.indexOf('<script>');
         const scriptTagEnd = originalValue.lastIndexOf('</script>');
 
-        // Check if a script block exists to be protected
         if (scriptTagStart !== -1 && scriptTagEnd !== -1 && scriptTagEnd > scriptTagStart) {
-            // 1. Get the content before the script tag
             const beforeScript = originalValue.substring(0, scriptTagStart);
-            
-            // 2. Get the script block itself (including tags)
             const scriptBlock = originalValue.substring(scriptTagStart, scriptTagEnd + '</script>'.length);
-            
-            // 3. Get the content after the script block
             const afterScript = originalValue.substring(scriptTagEnd + '</script>'.length);
-
-            // 4. Clean only the "before" and "after" parts
             const cleanedBefore = beforeScript.replace(/(\r?\n){2,}/g, '\n');
             const cleanedAfter = afterScript.replace(/(\r?\n){2,}/g, '\n');
-            
-            // 5. Reassemble the full text
             newValue = cleanedBefore + scriptBlock + cleanedAfter;
         } else {
-            // If no script tag, it's safe to clean the whole file
             newValue = originalValue.replace(/(\r?\n){2,}/g, '\n');
         }
 
@@ -659,6 +647,6 @@ const CodeEditor = {
 window.addEventListener('load', () => CodeEditor.init());
 
 </script>
-
+    
 </body>
 </html>
