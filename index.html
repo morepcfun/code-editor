@@ -172,7 +172,9 @@ const CodeEditor = {
         helpNewFile: "New File",
         helpSearchReplace: "Search & Replace",
         helpToggleHelp: "Show/Hide Help",
-        helpCleanWhitespace: "Clean Whitespace", // NEW
+        helpCleanWhitespace: "Clean Whitespace",
+        helpRemoveEmptyLines: "Remove Empty Lines", // NEW
+        helpPreview: "Preview in New Tab", // NEW
         helpIndent: "Indent",
         helpOutdent: "Outdent",
         helpNewTab: "Open in New Tab",
@@ -200,12 +202,12 @@ const CodeEditor = {
         this.updateStaticUIText();
         this.bindEventListeners();
         this.updateLineNumbers();
-        this.elements.editor.focus();
-
-        // NEW: Show help modal on first visit
+        
         if (!localStorage.getItem('editorVisited')) {
             this.toggleModal('help');
             localStorage.setItem('editorVisited', 'true');
+        } else {
+            this.elements.editor.focus();
         }
     },
 
@@ -293,12 +295,11 @@ const CodeEditor = {
         }
     },
 
-    cleanWhitespace() { // NEW FEATURE
+    // NEW: Generic code cleaning/modification helper function
+    _modifyContent(regex, replacement) {
         const editor = this.elements.editor;
         const originalValue = editor.value;
-        // Regex to find lines that are empty or contain only whitespace
-        // The /gm flags are crucial for multiline global replacement. \r? handles windows line endings.
-        const newValue = originalValue.replace(/^\s*$\r?\n/gm, '');
+        const newValue = originalValue.replace(regex, replacement);
 
         if (originalValue !== newValue) {
             const originalScrollTop = editor.scrollTop;
@@ -307,6 +308,22 @@ const CodeEditor = {
             this.setUnsavedChanges(true);
             this.updateLineNumbers();
         }
+    },
+
+    cleanWhitespace() {
+        this._modifyContent(/^\s*$\r?\n/gm, '');
+    },
+
+    removeEmptyLines() { // NEW
+        // WARNING: This can be destructive to JS template literals with intentional blank lines.
+        this._modifyContent(/(\r?\n){2,}/g, '\n');
+    },
+    
+    previewInNewTab() { // NEW
+        const blob = new Blob([this.elements.editor.value], { type: 'text/html' });
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
+        // The URL is temporary and will be released when the document is unloaded.
     },
     
     async openFile() {
@@ -456,18 +473,7 @@ const CodeEditor = {
         const replaceTerm = this.elements.replaceInput.value;
         if (!term) return;
 
-        const escapedTerm = this.utils.escapeRegExp(term);
-        const regex = new RegExp(escapedTerm, 'gi');
-        const originalValue = this.elements.editor.value;
-        const newValue = originalValue.replace(regex, replaceTerm);
-
-        if (originalValue !== newValue) {
-            const originalScrollTop = this.elements.editor.scrollTop;
-            this.elements.editor.value = newValue;
-            this.elements.editor.scrollTop = originalScrollTop;
-            this.setUnsavedChanges(true);
-            this.updateSearchResults();
-        }
+        this._modifyContent(new RegExp(this.utils.escapeRegExp(term), 'gi'), replaceTerm);
     },
 
     // --- Event Handlers ---
@@ -513,7 +519,6 @@ const CodeEditor = {
         const isCtrl = e.ctrlKey || e.metaKey;
         const key = e.key.toLowerCase();
 
-        // MODIFIED: Moved Alt+H outside the isModalOpen check so it always works
         if (e.altKey && key === 'h') {
             e.preventDefault();
             this.toggleModal('help');
@@ -542,7 +547,9 @@ const CodeEditor = {
         } else if (e.altKey) {
             if (key === 'n') { e.preventDefault(); this.newFile(); }
             if (key === 'f') { e.preventDefault(); this.toggleModal('search'); }
-            if (key === 'w') { e.preventDefault(); this.cleanWhitespace(); } // NEW
+            if (key === 'w') { e.preventDefault(); this.cleanWhitespace(); }
+            if (key === 'l') { e.preventDefault(); this.removeEmptyLines(); } // NEW
+            if (key === 'p') { e.preventDefault(); this.previewInNewTab(); } // NEW
             if (key === 't') { e.preventDefault(); window.open(window.location.href, '_blank'); }
         }
     },
@@ -560,13 +567,17 @@ const CodeEditor = {
         document.title = this.lang.title;
         const borderColor = getComputedStyle(document.documentElement).getPropertyValue('--border-color').trim();
         
-        const shortcuts = [ // MODIFIED: Added Clean Whitespace
+        const shortcuts = [ // NEW: Added Preview and Remove Empty Lines shortcuts
             { key: 'Ctrl + O', action: this.lang.helpOpenFile },
             { key: 'Ctrl + S', action: this.lang.helpSaveFile },
             { key: 'Alt + N', action: this.lang.helpNewFile },
+            { isSeparator: true },
             { key: 'Alt + F', action: this.lang.helpSearchReplace },
+            { key: 'Alt + P', action: this.lang.helpPreview },
             { key: 'Alt + H', action: this.lang.helpToggleHelp },
+            { isSeparator: true },
             { key: 'Alt + W', action: this.lang.helpCleanWhitespace },
+            { key: 'Alt + L', action: this.lang.helpRemoveEmptyLines },
             { isSeparator: true },
             { key: 'Ctrl + Shift + 1', action: this.lang.helpJumpStyle },
             { key: 'Ctrl + Shift + 2', action: this.lang.helpJumpScript },
