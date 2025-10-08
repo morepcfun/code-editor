@@ -320,19 +320,16 @@ const CodeEditor = {
         this._modifyContent(/^\s*$\r?\n/gm, '');
     },
 
-    // MODIFIED: This function is now 100% safe from the HTML parser bug
     removeEmptyLines() {
         const editor = this.elements.editor;
         const originalValue = editor.value;
         let newValue = '';
 
-        // Define the closing script tag in a way that the HTML parser won't see it
         const closingScriptTag = '</scr' + 'ipt>';
         
         const scriptTagStart = originalValue.indexOf('<script>');
         const scriptTagEnd = originalValue.lastIndexOf(closingScriptTag);
 
-        // Check if a script block exists to be protected
         if (scriptTagStart !== -1 && scriptTagEnd !== -1 && scriptTagEnd > scriptTagStart) {
             const beforeScript = originalValue.substring(0, scriptTagStart);
             const scriptBlock = originalValue.substring(scriptTagStart, scriptTagEnd + closingScriptTag.length);
@@ -343,7 +340,6 @@ const CodeEditor = {
             
             newValue = cleanedBefore + scriptBlock + cleanedAfter;
         } else {
-            // If no script tag, it's safe to clean the whole file
             newValue = originalValue.replace(/(\r?\n){2,}/g, '\n');
         }
 
@@ -474,16 +470,37 @@ const CodeEditor = {
         }
     },
 
+    // MODIFIED: This function now centers the result on screen
     findNext() {
         this.updateSearchResults();
-        const { indices } = this.state.searchResults;
+        const { indices, term } = this.state.searchResults;
         if (indices.length === 0) return;
-        
+
         this.state.searchResults.currentIndex = (this.state.searchResults.currentIndex + 1) % indices.length;
         const startIndex = indices[this.state.searchResults.currentIndex];
-        
-        this.elements.editor.focus();
-        this.elements.editor.setSelectionRange(startIndex, startIndex + this.state.searchResults.term.length);
+        const editor = this.elements.editor;
+
+        editor.focus();
+        editor.setSelectionRange(startIndex, startIndex + term.length);
+
+        // --- New scrolling logic ---
+        // 1. Find the line number of the match.
+        const textUpToMatch = editor.value.substring(0, startIndex);
+        const lineNumber = (textUpToMatch.match(/\n/g) || []).length;
+
+        // 2. Calculate the approximate pixel position of the line.
+        const totalLines = (editor.value.match(/\n/g) || []).length + 1;
+        const avgLineHeight = editor.scrollHeight / totalLines;
+        const targetScrollTop = lineNumber * avgLineHeight;
+
+        // 3. Calculate the position to center the line in the viewport.
+        const finalScrollTop = targetScrollTop - (editor.clientHeight / 2) + (avgLineHeight / 2);
+
+        // 4. Set the scroll position with a smooth animation.
+        editor.scrollTo({
+            top: finalScrollTop,
+            behavior: 'smooth'
+        });
     },
 
     replaceCurrent() {
