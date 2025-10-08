@@ -143,357 +143,473 @@ textarea::selection {
 </div>
 
 <script>
-const lang = {
-    title: "Code Editor",
-    untitled: "Untitled",
-    mainTitle: "Code Editor for HTML CSS JS",
-    helpTitle: "Shortcuts",
-    helpOpenFile: "Open File",
-    helpSaveFile: "Save File",
-    helpNewFile: "New File",
-    helpSearchReplace: "Search & Replace",
-    helpToggleHelp: "Show/Hide Help",
-    helpIndent: "Indent",
-    helpOutdent: "Outdent",
-    helpNewTab: "Open in New Tab",
-    helpJumpStyle: "Jump to &lt;style&gt;",
-    helpJumpScript: "Jump to &lt;script&gt;",
-    helpJumpBody: "Jump to &lt;body&gt;",
-    searchTitle: "Search & Replace",
-    findLabel: "Find:",
-    replaceLabel: "Replace with:",
-    findNext: "Find Next",
-    replace: "Replace",
-    replaceAll: "Replace All",
-    matches: "matches",
-    of: "of",
-    unsavedChanges: "You have unsaved changes. Are you sure?",
-    unsavedChangesLost: "You have unsaved changes that will be lost. Are you sure?",
-    unsupportedApi: "Your browser does not support the modern File System API.",
-    userAbortedOpen: "User aborted file opening.",
-    userAbortedSave: "User aborted the save dialog.",
-    saveError: "Error: Could not save the file."
+const CodeEditor = {
+    // Configuration and constants
+    config: {
+        debounceDelay: 150, // ms for debouncing inputs
+        indentUnit: '  ',   // 2 spaces for indentation
+    },
+
+    // Application state
+    state: {
+        fileHandle: null,
+        fileName: 'Untitled',
+        hasUnsavedChanges: false,
+        searchResults: { term: '', indices: [], currentIndex: -1 },
+    },
+
+    // Cached DOM elements
+    elements: {},
+
+    // Language strings
+    lang: {
+        title: "Code Editor",
+        untitled: "Untitled",
+        mainTitle: "Code Editor for HTML CSS JS",
+        helpTitle: "Shortcuts",
+        helpOpenFile: "Open File",
+        helpSaveFile: "Save File",
+        helpNewFile: "New File",
+        helpSearchReplace: "Search & Replace",
+        helpToggleHelp: "Show/Hide Help",
+        helpCleanWhitespace: "Clean Whitespace", // NEW
+        helpIndent: "Indent",
+        helpOutdent: "Outdent",
+        helpNewTab: "Open in New Tab",
+        helpJumpStyle: "Jump to &lt;style&gt;",
+        helpJumpScript: "Jump to &lt;script&gt;",
+        helpJumpBody: "Jump to &lt;body&gt;",
+        searchTitle: "Search & Replace",
+        findLabel: "Find:",
+        replaceLabel: "Replace with:",
+        findNext: "Find Next",
+        replace: "Replace",
+        replaceAll: "Replace All",
+        matches: "matches",
+        unsavedChanges: "You have unsaved changes. Are you sure?",
+        unsavedChangesLost: "You have unsaved changes that will be lost. Are you sure?",
+        unsupportedApi: "Your browser does not support the modern File System API.",
+        userAbortedOpen: "User aborted file opening.",
+        userAbortedSave: "User aborted the save dialog.",
+        saveError: "Error: Could not save the file."
+    },
+
+    // Main initialization function
+    init() {
+        this.cacheDOMElements();
+        this.updateStaticUIText();
+        this.bindEventListeners();
+        this.updateLineNumbers();
+        this.elements.editor.focus();
+
+        // NEW: Show help modal on first visit
+        if (!localStorage.getItem('editorVisited')) {
+            this.toggleModal('help');
+            localStorage.setItem('editorVisited', 'true');
+        }
+    },
+
+    // Cache all necessary DOM elements
+    cacheDOMElements() {
+        this.elements = {
+            editor: document.getElementById('editor'),
+            lineNumbers: document.getElementById('line-numbers'),
+            helpModal: document.getElementById('help-modal'),
+            helpModalCloseBtn: document.getElementById('help-modal-close-btn'),
+            searchModal: document.getElementById('search-modal'),
+            searchModalCloseBtn: document.getElementById('search-modal-close-btn'),
+            findInput: document.getElementById('find-input'),
+            replaceInput: document.getElementById('replace-input'),
+            findNextBtn: document.getElementById('find-next-btn'),
+            replaceBtn: document.getElementById('replace-btn'),
+            replaceAllBtn: document.getElementById('replace-all-btn'),
+            matchCountSpan: document.getElementById('match-count'),
+            helpMainTitle: document.getElementById('help-main-title'),
+            helpTitle: document.getElementById('help-title'),
+            helpList: document.getElementById('help-list'),
+            searchMainTitle: document.getElementById('search-main-title'),
+            searchTitle: document.getElementById('search-title'),
+            findLabelText: document.getElementById('find-label-text'),
+            replaceLabel: document.getElementById('replace-label'),
+        };
+    },
+    
+    // Bind all event listeners
+    bindEventListeners() {
+        const editor = this.elements.editor;
+        const findInput = this.elements.findInput;
+
+        editor.addEventListener('scroll', () => this.elements.lineNumbers.scrollTop = editor.scrollTop);
+        editor.addEventListener('input', this.handleEditorInput.bind(this));
+        editor.addEventListener('keydown', this.handleEditorKeyDown.bind(this));
+        
+        findInput.addEventListener('input', this.utils.debounce(this.updateSearchResults.bind(this), this.config.debounceDelay));
+        
+        this.elements.helpModalCloseBtn.addEventListener('click', () => this.toggleModal('help'));
+        this.elements.searchModalCloseBtn.addEventListener('click', () => this.toggleModal('search'));
+        
+        this.elements.findNextBtn.addEventListener('click', this.findNext.bind(this));
+        this.elements.replaceBtn.addEventListener('click', this.replaceCurrent.bind(this));
+        this.elements.replaceAllBtn.addEventListener('click', this.replaceAll.bind(this));
+        
+        document.addEventListener('keydown', this.handleGlobalKeyDown.bind(this));
+        window.addEventListener('beforeunload', this.handleBeforeUnload.bind(this));
+        window.addEventListener('focus', () => {
+             if (this.elements.helpModal.style.display !== 'block' && this.elements.searchModal.style.display !== 'block') {
+                editor.focus();
+            }
+        });
+    },
+
+    // Centralized handler for all modal toggling
+    toggleModal(modalName) {
+        const modal = this.elements[`${modalName}Modal`];
+        const isVisible = modal.style.display === 'block';
+        modal.style.display = isVisible ? 'none' : 'block';
+
+        if (!isVisible) {
+            if (modalName === 'search') {
+                this.elements.findInput.focus();
+                this.elements.findInput.select();
+                this.updateSearchResults();
+            }
+        } else {
+            this.elements.editor.focus();
+        }
+    },
+    
+    // --- Core Editor Features ---
+
+    updateLineNumbers() {
+        const text = this.elements.editor.value;
+        let lineCount = 1;
+        for (let i = 0; i < text.length; i++) {
+            if (text[i] === '\n') lineCount++;
+        }
+        
+        const numbers = Array.from({ length: lineCount }, (_, i) => i + 1).join('\n');
+        if (this.elements.lineNumbers.textContent !== numbers) {
+            this.elements.lineNumbers.textContent = numbers;
+        }
+    },
+
+    cleanWhitespace() { // NEW FEATURE
+        const editor = this.elements.editor;
+        const originalValue = editor.value;
+        // Regex to find lines that are empty or contain only whitespace
+        // The /gm flags are crucial for multiline global replacement. \r? handles windows line endings.
+        const newValue = originalValue.replace(/^\s*$\r?\n/gm, '');
+
+        if (originalValue !== newValue) {
+            const originalScrollTop = editor.scrollTop;
+            editor.value = newValue;
+            editor.scrollTop = originalScrollTop;
+            this.setUnsavedChanges(true);
+            this.updateLineNumbers();
+        }
+    },
+    
+    async openFile() {
+        if (this.state.hasUnsavedChanges && !confirm(this.lang.unsavedChangesLost)) return;
+        if (!('showOpenFilePicker' in window)) return alert(this.lang.unsupportedApi);
+        
+        try {
+            const [fileHandle] = await window.showOpenFilePicker();
+            this.state.fileHandle = fileHandle;
+            const file = await fileHandle.getFile();
+            this.elements.editor.value = await file.text();
+            
+            this.state.fileName = file.name;
+            this.setUnsavedChanges(false);
+            this.updateLineNumbers();
+            this.elements.editor.scrollTop = 0;
+            this.elements.editor.setSelectionRange(0, 0);
+        } catch (err) {
+            console.warn(this.lang.userAbortedOpen, err);
+        }
+    },
+
+    newFile() {
+        if (this.state.hasUnsavedChanges && !confirm(this.lang.unsavedChanges)) return;
+        
+        this.elements.editor.value = '';
+        this.state.fileHandle = null;
+        this.state.fileName = this.lang.untitled;
+        this.setUnsavedChanges(false);
+        this.updateLineNumbers();
+        this.elements.editor.focus();
+    },
+
+    async saveFile() {
+        if (!this.state.fileHandle) {
+            try {
+                this.state.fileHandle = await window.showSaveFilePicker({
+                    suggestedName: this.state.fileName.endsWith('.txt') ? this.state.fileName.replace('.txt', '.html') : this.state.fileName,
+                    types: [{
+                        description: 'Web Files',
+                        accept: {
+                            'text/html': ['.html', '.htm'],
+                            'text/css': ['.css'],
+                            'application/javascript': ['.js'],
+                            'text/plain': ['.txt', '.md'],
+                        },
+                    }],
+                });
+                this.state.fileName = this.state.fileHandle.name;
+            } catch (err) {
+                console.warn(this.lang.userAbortedSave, err);
+                return;
+            }
+        }
+        
+        try {
+            const writable = await this.state.fileHandle.createWritable();
+            await writable.write(this.elements.editor.value);
+            await writable.close();
+            this.setUnsavedChanges(false);
+        } catch (err) {
+            console.error('Could not save file:', err);
+            alert(this.lang.saveError);
+        }
+    },
+    
+    jumpToSection(tagName) {
+        const editor = this.elements.editor;
+        const tag = `<${tagName}`;
+        const position = editor.value.indexOf(tag);
+        if (position === -1) return;
+
+        editor.focus();
+        editor.setSelectionRange(position, position);
+        editor.blur(); 
+        editor.focus();
+        editor.setSelectionRange(position, position);
+    },
+
+    setUnsavedChanges(isUnsaved) {
+        this.state.hasUnsavedChanges = isUnsaved;
+        document.title = isUnsaved ? `* ${this.state.fileName}` : this.state.fileName;
+    },
+
+    // --- Search & Replace ---
+
+    updateSearchResults() {
+        const searchTerm = this.elements.findInput.value;
+        this.elements.matchCountSpan.textContent = '';
+        
+        if (!searchTerm) {
+            this.state.searchResults = { term: '', indices: [], currentIndex: -1 };
+            return;
+        }
+
+        if (this.state.searchResults.term === searchTerm) return;
+        
+        this.state.searchResults.term = searchTerm;
+        this.state.searchResults.indices = [];
+        this.state.searchResults.currentIndex = -1;
+        
+        const escapedTerm = this.utils.escapeRegExp(searchTerm);
+        const regex = new RegExp(escapedTerm, 'gi');
+        let match;
+        while ((match = regex.exec(this.elements.editor.value)) !== null) {
+            this.state.searchResults.indices.push(match.index);
+        }
+        
+        if (this.state.searchResults.indices.length > 0) {
+            this.elements.matchCountSpan.textContent = `${this.state.searchResults.indices.length} ${this.lang.matches}`;
+        }
+    },
+
+    findNext() {
+        this.updateSearchResults();
+        const { indices } = this.state.searchResults;
+        if (indices.length === 0) return;
+        
+        this.state.searchResults.currentIndex = (this.state.searchResults.currentIndex + 1) % indices.length;
+        const startIndex = indices[this.state.searchResults.currentIndex];
+        
+        this.elements.editor.focus();
+        this.elements.editor.setSelectionRange(startIndex, startIndex + this.state.searchResults.term.length);
+    },
+
+    replaceCurrent() {
+        const { term } = this.state.searchResults;
+        const replaceTerm = this.elements.replaceInput.value;
+        const { selectionStart, selectionEnd } = this.elements.editor;
+
+        if (!term || selectionStart === selectionEnd) {
+            this.findNext();
+            return;
+        }
+        
+        const selectedText = this.elements.editor.value.substring(selectionStart, selectionEnd);
+        if (selectedText.toLowerCase() === term.toLowerCase()) {
+            this.elements.editor.setRangeText(replaceTerm, selectionStart, selectionEnd, 'end');
+            this.setUnsavedChanges(true);
+            this.updateSearchResults();
+        }
+        this.findNext();
+    },
+
+    replaceAll() {
+        const term = this.elements.findInput.value;
+        const replaceTerm = this.elements.replaceInput.value;
+        if (!term) return;
+
+        const escapedTerm = this.utils.escapeRegExp(term);
+        const regex = new RegExp(escapedTerm, 'gi');
+        const originalValue = this.elements.editor.value;
+        const newValue = originalValue.replace(regex, replaceTerm);
+
+        if (originalValue !== newValue) {
+            const originalScrollTop = this.elements.editor.scrollTop;
+            this.elements.editor.value = newValue;
+            this.elements.editor.scrollTop = originalScrollTop;
+            this.setUnsavedChanges(true);
+            this.updateSearchResults();
+        }
+    },
+
+    // --- Event Handlers ---
+
+    handleEditorInput() {
+        if (!this.state.hasUnsavedChanges) {
+            this.setUnsavedChanges(true);
+        }
+        this.state.searchResults.term = null;
+        this.utils.debounce(this.updateLineNumbers.bind(this), this.config.debounceDelay)();
+    },
+
+    handleEditorKeyDown(e) {
+        if (e.key === 'Tab') {
+            e.preventDefault();
+            const { selectionStart, selectionEnd, value } = this.elements.editor;
+            const indent = this.config.indentUnit;
+
+            if (value.substring(selectionStart, selectionEnd).includes('\n')) {
+                let lineStart = value.lastIndexOf('\n', selectionStart - 1) + 1;
+                const affectedText = value.substring(lineStart, selectionEnd);
+                let newText;
+
+                if (e.shiftKey) { // Outdent
+                    newText = affectedText.split('\n').map(line =>
+                        line.startsWith(indent) ? line.substring(indent.length) : line
+                    ).join('\n');
+                } else { // Indent
+                    newText = affectedText.split('\n').map(line => indent + line).join('\n');
+                }
+                this.elements.editor.setRangeText(newText, lineStart, selectionEnd, 'select');
+            } else { // Single line
+                if (!e.shiftKey) {
+                    this.elements.editor.setRangeText(indent, selectionStart, selectionEnd, 'end');
+                }
+            }
+            this.setUnsavedChanges(true);
+        }
+    },
+    
+    handleGlobalKeyDown(e) {
+        const isModalOpen = this.elements.helpModal.style.display === 'block' || this.elements.searchModal.style.display === 'block';
+        const isCtrl = e.ctrlKey || e.metaKey;
+        const key = e.key.toLowerCase();
+
+        // MODIFIED: Moved Alt+H outside the isModalOpen check so it always works
+        if (e.altKey && key === 'h') {
+            e.preventDefault();
+            this.toggleModal('help');
+        }
+
+        if (isModalOpen) {
+            if (key === 'escape') {
+                e.preventDefault();
+                if (this.elements.searchModal.style.display === 'block') this.toggleModal('search');
+                if (this.elements.helpModal.style.display === 'block') this.toggleModal('help');
+            } else if (key === 'enter' && !e.shiftKey && this.elements.searchModal.style.display === 'block') {
+                e.preventDefault();
+                this.elements.findNextBtn.click();
+            }
+            return;
+        }
+
+        if (isCtrl) {
+            if (key === 's') { e.preventDefault(); this.saveFile(); }
+            if (key === 'o') { e.preventDefault(); this.openFile(); }
+            if (e.shiftKey) {
+                if (e.code === 'Digit1') { e.preventDefault(); this.jumpToSection('style'); }
+                if (e.code === 'Digit2') { e.preventDefault(); this.jumpToSection('script'); }
+                if (e.code === 'Digit3') { e.preventDefault(); this.jumpToSection('body'); }
+            }
+        } else if (e.altKey) {
+            if (key === 'n') { e.preventDefault(); this.newFile(); }
+            if (key === 'f') { e.preventDefault(); this.toggleModal('search'); }
+            if (key === 'w') { e.preventDefault(); this.cleanWhitespace(); } // NEW
+            if (key === 't') { e.preventDefault(); window.open(window.location.href, '_blank'); }
+        }
+    },
+    
+    handleBeforeUnload(e) {
+        if (this.state.hasUnsavedChanges) {
+            e.preventDefault();
+            e.returnValue = '';
+        }
+    },
+
+    // --- UI & Utilities ---
+
+    updateStaticUIText() {
+        document.title = this.lang.title;
+        const borderColor = getComputedStyle(document.documentElement).getPropertyValue('--border-color').trim();
+        
+        const shortcuts = [ // MODIFIED: Added Clean Whitespace
+            { key: 'Ctrl + O', action: this.lang.helpOpenFile },
+            { key: 'Ctrl + S', action: this.lang.helpSaveFile },
+            { key: 'Alt + N', action: this.lang.helpNewFile },
+            { key: 'Alt + F', action: this.lang.helpSearchReplace },
+            { key: 'Alt + H', action: this.lang.helpToggleHelp },
+            { key: 'Alt + W', action: this.lang.helpCleanWhitespace },
+            { isSeparator: true },
+            { key: 'Ctrl + Shift + 1', action: this.lang.helpJumpStyle },
+            { key: 'Ctrl + Shift + 2', action: this.lang.helpJumpScript },
+            { key: 'Ctrl + Shift + 3', action: this.lang.helpJumpBody },
+            { isSeparator: true },
+            { key: 'Alt + T', action: this.lang.helpNewTab },
+            { key: 'Tab', action: this.lang.helpIndent },
+            { key: 'Shift + Tab', action: this.lang.helpOutdent },
+        ];
+        
+        this.elements.helpList.innerHTML = shortcuts.map(item => {
+            if (item.isSeparator) return `<hr style="border-color: ${borderColor}; margin: 10px 0;">`;
+            return `<li><strong>${item.key}</strong> ${item.action}</li>`;
+        }).join('');
+
+        this.elements.helpMainTitle.textContent = this.lang.mainTitle;
+        this.elements.helpTitle.textContent = this.lang.helpTitle;
+        this.elements.searchMainTitle.textContent = this.lang.mainTitle;
+        this.elements.searchTitle.textContent = this.lang.searchTitle;
+        this.elements.findLabelText.textContent = this.lang.findLabel;
+        this.elements.replaceLabel.textContent = this.lang.replaceLabel;
+        this.elements.findNextBtn.textContent = this.lang.findNext;
+        this.elements.replaceBtn.textContent = this.lang.replace;
+        this.elements.replaceAllBtn.textContent = this.lang.replaceAll;
+    },
+
+    utils: {
+        debounce(func, delay) {
+            let timeout;
+            return function(...args) {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(this, args), delay);
+            };
+        },
+        escapeRegExp(string) {
+            return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        }
+    }
 };
 
-const editor = document.getElementById('editor');
-const lineNumbers = document.getElementById('line-numbers');
-const helpModal = document.getElementById('help-modal');
-const helpModalCloseBtn = document.getElementById('help-modal-close-btn');
-const searchModal = document.getElementById('search-modal');
-const searchModalCloseBtn = document.getElementById('search-modal-close-btn');
-const findInput = document.getElementById('find-input');
-const replaceInput = document.getElementById('replace-input');
-const findNextBtn = document.getElementById('find-next-btn');
-const replaceBtn = document.getElementById('replace-btn');
-const replaceAllBtn = document.getElementById('replace-all-btn');
-const matchCountSpan = document.getElementById('match-count');
+window.addEventListener('load', () => CodeEditor.init());
 
-let currentFileHandle = null;
-let currentFileName = lang.untitled;
-let hasUnsavedChanges = false;
-let searchResults = { term: '', indices: [], currentIndex: -1 };
-let lineNumberUpdateTimer = null;
-
-function updateLineNumbers() {
-    const lineCount = editor.value.split('\n').length;
-    const numbers = Array.from({ length: lineCount }, (_, i) => i + 1).join('\n');
-    lineNumbers.textContent = numbers;
-}
-
-function debouncedUpdateLineNumbers() {
-    clearTimeout(lineNumberUpdateTimer);
-    lineNumberUpdateTimer = setTimeout(updateLineNumbers, 100);
-}
-
-async function openFile() {
-    if (hasUnsavedChanges && !confirm(lang.unsavedChangesLost)) return;
-    if (!('showOpenFilePicker' in window)) return alert(lang.unsupportedApi);
-    try {
-        const [fileHandle] = await window.showOpenFilePicker();
-        currentFileHandle = fileHandle;
-        const file = await fileHandle.getFile();
-        editor.value = await file.text();
-        updateLineNumbers();
-        editor.scrollTop = 0;
-        editor.setSelectionRange(0, 0);
-        currentFileName = file.name;
-        document.title = currentFileName;
-        hasUnsavedChanges = false;
-    } catch (err) { console.warn(lang.userAbortedOpen, err); }
-}
-
-function newFile() {
-    if (hasUnsavedChanges && !confirm(lang.unsavedChanges)) return;
-    editor.value = '';
-    currentFileHandle = null;
-    currentFileName = lang.untitled;
-    document.title = currentFileName;
-    hasUnsavedChanges = false;
-    updateLineNumbers();
-    editor.focus();
-}
-
-async function saveFile() {
-    if (!currentFileHandle) {
-        try {
-            currentFileHandle = await window.showSaveFilePicker({
-                suggestedName: currentFileName.endsWith('.txt') ? currentFileName.replace('.txt', '.html') : currentFileName,
-                types: [{
-                    description: 'Web Files',
-                    accept: {
-                        'text/html': ['.html', '.htm'],
-                        'text/css': ['.css'],
-                        'application/javascript': ['.js'],
-                        'text/plain': ['.txt', '.md'],
-                    },
-                }],
-            });
-            currentFileName = currentFileHandle.name;
-        } catch (err) { console.warn(lang.userAbortedSave, err); return; }
-    }
-    try {
-        const writable = await currentFileHandle.createWritable();
-        await writable.write(editor.value);
-        await writable.close();
-        hasUnsavedChanges = false;
-        document.title = currentFileName;
-    } catch (err) { console.error('Could not save file:', err); alert(lang.saveError); }
-}
-
-function jumpToSection(tagName) {
-    const tag = `<${tagName}`;
-    const position = editor.value.indexOf(tag);
-    if (position === -1) return;
-
-    const textUpToPosition = editor.value.substring(0, position);
-    const lineCount = textUpToPosition.split('\n').length;
-    
-    const avgLineHeight = editor.scrollHeight / (editor.value.split('\n').length || 1);
-    editor.scrollTop = (lineCount - 1) * avgLineHeight;
-
-    editor.focus();
-    editor.setSelectionRange(position, position);
-}
-
-function toggleHelp() {
-    const isVisible = helpModal.style.display === 'block';
-    helpModal.style.display = isVisible ? 'none' : 'block';
-    if (!isVisible) {
-        editor.focus();
-    }
-}
-
-function toggleSearch() {
-    const isVisible = searchModal.style.display === 'block';
-    searchModal.style.display = isVisible ? 'none' : 'block';
-    if (!isVisible) {
-        findInput.focus();
-        findInput.select();
-        updateSearchResults();
-    } else {
-        editor.focus();
-    }
-}
-
-function escapeRegExp(string) {
-    return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-}
-
-function updateSearchResults() {
-    const searchTerm = findInput.value;
-    if (searchResults.term === searchTerm && searchTerm !== '') return;
-    searchResults.term = searchTerm;
-    searchResults.indices = [];
-    searchResults.currentIndex = -1;
-    matchCountSpan.textContent = '';
-    if (!searchTerm) return;
-    const escapedTerm = escapeRegExp(searchTerm);
-    const regex = new RegExp(escapedTerm, 'gi');
-    let match;
-    while ((match = regex.exec(editor.value)) !== null) {
-        searchResults.indices.push(match.index);
-    }
-    if (searchResults.indices.length > 0) {
-        matchCountSpan.textContent = `${searchResults.indices.length} ${lang.matches}`;
-    }
-}
-
-function findNext() {
-    updateSearchResults();
-    if (searchResults.indices.length === 0) return;
-    searchResults.currentIndex = (searchResults.currentIndex + 1) % searchResults.indices.length;
-    const startIndex = searchResults.indices[searchResults.currentIndex];
-    editor.focus();
-    editor.setSelectionRange(startIndex, startIndex + searchResults.term.length);
-}
-
-function replaceCurrent() {
-    const searchTerm = findInput.value;
-    const replaceTerm = replaceInput.value;
-    if (!searchTerm || editor.selectionStart === editor.selectionEnd) {
-        findNext(); return;
-    }
-    const selectedText = editor.value.substring(editor.selectionStart, editor.selectionEnd);
-    if (selectedText.toLowerCase() === searchTerm.toLowerCase()) {
-        editor.setRangeText(replaceTerm, editor.selectionStart, editor.selectionEnd, 'end');
-        hasUnsavedChanges = true;
-        updateSearchResults();
-        findNext();
-    } else {
-        findNext();
-    }
-}
-
-function replaceAll() {
-    const searchTerm = findInput.value;
-    const replaceTerm = replaceInput.value;
-    if (!searchTerm) return;
-    const escapedTerm = escapeRegExp(searchTerm);
-    const regex = new RegExp(escapedTerm, 'gi');
-    const originalValue = editor.value;
-    const newValue = originalValue.replace(regex, replaceTerm);
-    if (originalValue !== newValue) {
-        const originalScrollTop = editor.scrollTop;
-        editor.value = newValue;
-        editor.scrollTop = originalScrollTop;
-        hasUnsavedChanges = true;
-        updateSearchResults();
-    }
-}
-
-function updateStaticUIText() {
-    document.title = lang.title;
-    document.getElementById('help-main-title').textContent = lang.mainTitle;
-    document.getElementById('help-title').textContent = lang.helpTitle;
-    document.getElementById('help-list').innerHTML = `
-        <li><strong>Ctrl + O</strong> ${lang.helpOpenFile}</li>
-        <li><strong>Ctrl + S</strong> ${lang.helpSaveFile}</li>
-        <li><strong>Alt + N</strong> ${lang.helpNewFile}</li>
-        <li><strong>Alt + F</strong> ${lang.helpSearchReplace}</li>
-        <li><strong>Alt + H</strong> ${lang.helpToggleHelp}</li>
-        <hr style="border-color: ${getComputedStyle(document.documentElement).getPropertyValue('--border-color').trim()}; margin: 10px 0;">
-        <li><strong>Ctrl + Shift + 1</strong> ${lang.helpJumpStyle}</li>
-        <li><strong>Ctrl + Shift + 2</strong> ${lang.helpJumpScript}</li>
-        <li><strong>Ctrl + Shift + 3</strong> ${lang.helpJumpBody}</li>
-        <hr style="border-color: ${getComputedStyle(document.documentElement).getPropertyValue('--border-color').trim()}; margin: 10px 0;">
-        <li><strong>Alt + T</strong> ${lang.helpNewTab}</li>
-        <li><strong>Tab</strong> ${lang.helpIndent}</li>
-        <li><strong>Shift + Tab</strong> ${lang.helpOutdent}</li>
-    `;
-    document.getElementById('search-main-title').textContent = lang.mainTitle;
-    document.getElementById('search-title').textContent = lang.searchTitle;
-    document.getElementById('find-label-text').textContent = lang.findLabel;
-    document.getElementById('replace-label').textContent = lang.replaceLabel;
-    document.getElementById('find-next-btn').textContent = lang.findNext;
-    document.getElementById('replace-btn').textContent = lang.replace;
-    document.getElementById('replace-all-btn').textContent = lang.replaceAll;
-}
-
-// Event Listeners
-findInput.addEventListener('input', updateSearchResults);
-helpModalCloseBtn.addEventListener('click', toggleHelp);
-searchModalCloseBtn.addEventListener('click', toggleSearch);
-findNextBtn.addEventListener('click', findNext);
-replaceBtn.addEventListener('click', replaceCurrent);
-replaceAllBtn.addEventListener('click', replaceAll);
-
-editor.addEventListener('scroll', () => {
-    lineNumbers.scrollTop = editor.scrollTop;
-});
-
-editor.addEventListener('input', () => {
-    if (!hasUnsavedChanges) {
-        hasUnsavedChanges = true;
-        document.title = "* " + currentFileName;
-    }
-    searchResults.term = null;
-    debouncedUpdateLineNumbers();
-});
-
-editor.addEventListener('keydown', function(e) {
-    if (e.key === 'Tab') {
-        e.preventDefault();
-        const indent = '  ';
-        const start = this.selectionStart;
-        const end = this.selectionEnd;
-        const selectedText = this.value.substring(start, end);
-        if (selectedText.includes('\n')) {
-            let lineStart = this.value.lastIndexOf('\n', start - 1) + 1;
-            let lineEnd = end;
-            if (this.value[end - 1] === '\n') { lineEnd = end - 1; }
-            const selectedLinesText = this.value.substring(lineStart, lineEnd);
-            let newText = '';
-            if (e.shiftKey) {
-                newText = selectedLinesText.split('\n').map(line =>
-                    line.startsWith(indent) ? line.substring(indent.length) : line
-                ).join('\n');
-            } else {
-                newText = selectedLinesText.split('\n').map(line => indent + line).join('\n');
-            }
-            this.setRangeText(newText, lineStart, lineEnd, 'select');
-        } else {
-            if (!e.shiftKey) {
-                this.setRangeText(indent, start, end, 'end');
-            }
-        }
-    }
-});
-
-document.addEventListener('keydown', function(e) {
-    const isCtrl = e.ctrlKey || e.metaKey;
-    const key = e.key.toLowerCase();
-    
-    if (e.altKey && key === 'h') { 
-        e.preventDefault(); 
-        toggleHelp(); 
-        return; 
-    }
-
-    if (searchModal.style.display === 'block' || helpModal.style.display === 'block') {
-        if (key === 'escape') {
-            e.preventDefault();
-            if(searchModal.style.display === 'block') toggleSearch();
-            if(helpModal.style.display === 'block') toggleHelp();
-        }
-        if (searchModal.style.display === 'block' && key === 'enter' && !e.shiftKey) {
-            e.preventDefault();
-            findNextBtn.click();
-        }
-        return;
-    }
-
-    if (isCtrl && e.shiftKey) {
-        if (e.code === 'Digit1') { e.preventDefault(); jumpToSection('style'); }
-        if (e.code === 'Digit2') { e.preventDefault(); jumpToSection('script'); }
-        if (e.code === 'Digit3') { e.preventDefault(); jumpToSection('body'); }
-        return;
-    }
-
-    if (isCtrl && key === 's') { e.preventDefault(); saveFile(); }
-    if (isCtrl && key === 'o') { e.preventDefault(); openFile(); }
-    if (e.altKey && key === 't') { e.preventDefault(); window.open(window.location.href, '_blank'); }
-    if (e.altKey && key === 'n') { e.preventDefault(); newFile(); }
-    if (e.altKey && key === 'f') { e.preventDefault(); toggleSearch(); }
-});
-
-window.addEventListener('load', () => {
-    updateStaticUIText();
-    updateLineNumbers();
-    editor.focus();
-});
-
-window.addEventListener('beforeunload', (e) => {
-    if (hasUnsavedChanges) {
-        e.preventDefault();
-        e.returnValue = '';
-    }
-});
-
-window.addEventListener('focus', () => {
-    if (helpModal.style.display !== 'block' && searchModal.style.display !== 'block') {
-        editor.focus();
-    }
-});
 </script>
+
 </body>
 </html>
