@@ -13,8 +13,8 @@
 :root {
 --bg-color: #0d1117;
 --text-color: #c9d1d9;
---accent-color: #61afef; /* Softer Blue */
---border-color: #282c34; /* Softer Border */
+--accent-color: #61afef;
+--border-color: #282c34;
 --caret-color: #61afef;
 --selection-bg: rgba(97, 175, 239, 0.3);
 --font-mono: 'Fira Code', 'JetBrains Mono', 'Menlo', 'Monaco', 'Courier New', monospace;
@@ -165,14 +165,13 @@ visibility: visible;
 <div id="toast-notification"></div>
 <script>
 const CodeEditor = {
-// Configuration and constants
+
 config: {
-debounceDelay: 150, // ms for debouncing inputs
-indentUnit: '  ',   // 2 spaces for indentation
-toastDuration: 2500, // ms to show toast
+debounceDelay: 150,
+indentUnit: '  ',
+toastDuration: 2500,
 },
 
-// Application state
 state: {
 fileHandle: null,
 fileName: 'Untitled',
@@ -181,10 +180,8 @@ searchResults: { term: '', indices: [], currentIndex: -1 },
 toastTimer: null,
 },
 
-// Cached DOM elements
 elements: {},
 
-// Language strings
 lang: {
 title: "Code Editor",
 untitled: "Untitled",
@@ -219,7 +216,6 @@ userAbortedSave: "User aborted the save dialog.",
 saveError: "Error: Could not save the file."
 },
 
-// Main initialization function
 init() {
 this.cacheDOMElements();
 this.updateStaticUIText();
@@ -234,7 +230,6 @@ this.elements.editor.focus();
 }
 },
 
-// Cache all necessary DOM elements
 cacheDOMElements() {
 this.elements = {
 editor: document.getElementById('editor'),
@@ -260,7 +255,6 @@ toast: document.getElementById('toast-notification'),
 };
 },
 
-// Bind all event listeners
 bindEventListeners() {
 const editor = this.elements.editor;
 const findInput = this.elements.findInput;
@@ -287,7 +281,6 @@ editor.focus();
 });
 },
 
-// Centralized handler for all modal toggling
 toggleModal(modalName) {
 const modal = this.elements[`${modalName}Modal`];
 const isVisible = modal.style.display === 'block';
@@ -313,8 +306,6 @@ this.elements.toast.classList.remove('show');
 }, this.config.toastDuration);
 },
 
-// --- Core Editor Features ---
-
 updateLineNumbers() {
 const text = this.elements.editor.value;
 let lineCount = 1;
@@ -328,7 +319,6 @@ this.elements.lineNumbers.textContent = numbers;
 }
 },
 
-// NEW: Central, safe helper for modifying content outside of <script> tags
 _safeModifyOutsideScript(regex, replacement) {
 const editor = this.elements.editor;
 const originalValue = editor.value;
@@ -367,7 +357,6 @@ return linesRemoved;
 return 0;
 },
 
-// MODIFIED: Now uses the safe helper function
 cleanWhitespace() {
 const linesRemoved = this._safeModifyOutsideScript(/^\s*$\r?\n/gm, '');
 if (linesRemoved > 0) {
@@ -376,7 +365,6 @@ this.showToast(`Removed ${linesRemoved} whitespace ${plural} (except in JavaScri
 }
 },
 
-// MODIFIED: Now uses the safe helper function
 removeEmptyLines() {
 const linesRemoved = this._safeModifyOutsideScript(/(\r?\n){2,}/g, '\n');
 if (linesRemoved > 0) {
@@ -475,7 +463,6 @@ this.state.hasUnsavedChanges = isUnsaved;
 document.title = isUnsaved ? `* ${this.state.fileName}` : this.state.fileName;
 },
 
-// --- Search & Replace ---
 updateSearchResults() {
 const searchTerm = this.elements.findInput.value;
 this.elements.matchCountSpan.textContent = '';
@@ -564,7 +551,6 @@ this.updateSearchResults();
 }
 },
 
-// --- Event Handlers ---
 handleEditorInput() {
 if (!this.state.hasUnsavedChanges) {
 this.setUnsavedChanges(true);
@@ -584,15 +570,15 @@ let lineStart = value.lastIndexOf('\n', selectionStart - 1) + 1;
 const affectedText = value.substring(lineStart, selectionEnd);
 let newText;
 
-if (e.shiftKey) { // Outdent
+if (e.shiftKey) {
   newText = affectedText.split('\n').map(line =>
       line.startsWith(indent) ? line.substring(indent.length) : line
   ).join('\n');
-} else { // Indent
+} else {
   newText = affectedText.split('\n').map(line => indent + line).join('\n');
 }
 this.elements.editor.setRangeText(newText, lineStart, selectionEnd, 'select');
-} else { // Single line
+} else {
 if (!e.shiftKey) {
   this.elements.editor.setRangeText(indent, selectionStart, selectionEnd, 'end');
 }
@@ -648,7 +634,6 @@ e.returnValue = '';
 }
 },
 
-// --- UI & Utilities ---
 updateStaticUIText() {
 document.title = this.lang.title;
 const borderColor = getComputedStyle(document.documentElement).getPropertyValue('--border-color').trim();
