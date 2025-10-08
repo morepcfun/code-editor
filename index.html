@@ -179,8 +179,8 @@ const CodeEditor = {
         helpSearchReplace: "Search & Replace",
         helpToggleHelp: "Show/Hide Help",
         helpCleanWhitespace: "Clean Whitespace",
-        helpRemoveEmptyLines: "Remove Empty Lines", // NEW
-        helpPreview: "Preview in New Tab", // NEW
+        helpRemoveEmptyLines: "Remove Empty Lines",
+        helpPreview: "Preview in New Tab",
         helpIndent: "Indent",
         helpOutdent: "Outdent",
         helpNewTab: "Open in New Tab",
@@ -301,7 +301,6 @@ const CodeEditor = {
         }
     },
 
-    // NEW: Generic code cleaning/modification helper function
     _modifyContent(regex, replacement) {
         const editor = this.elements.editor;
         const originalValue = editor.value;
@@ -320,16 +319,50 @@ const CodeEditor = {
         this._modifyContent(/^\s*$\r?\n/gm, '');
     },
 
-    removeEmptyLines() { // NEW
-        // WARNING: This can be destructive to JS template literals with intentional blank lines.
-        this._modifyContent(/(\r?\n){2,}/g, '\n');
+    // MODIFIED: This function is now 100% safe
+    removeEmptyLines() {
+        const editor = this.elements.editor;
+        const originalValue = editor.value;
+        let newValue = '';
+
+        const scriptTagStart = originalValue.indexOf('<script>');
+        const scriptTagEnd = originalValue.lastIndexOf('</script>');
+
+        // Check if a script block exists to be protected
+        if (scriptTagStart !== -1 && scriptTagEnd !== -1 && scriptTagEnd > scriptTagStart) {
+            // 1. Get the content before the script tag
+            const beforeScript = originalValue.substring(0, scriptTagStart);
+            
+            // 2. Get the script block itself (including tags)
+            const scriptBlock = originalValue.substring(scriptTagStart, scriptTagEnd + '</script>'.length);
+            
+            // 3. Get the content after the script block
+            const afterScript = originalValue.substring(scriptTagEnd + '</script>'.length);
+
+            // 4. Clean only the "before" and "after" parts
+            const cleanedBefore = beforeScript.replace(/(\r?\n){2,}/g, '\n');
+            const cleanedAfter = afterScript.replace(/(\r?\n){2,}/g, '\n');
+            
+            // 5. Reassemble the full text
+            newValue = cleanedBefore + scriptBlock + cleanedAfter;
+        } else {
+            // If no script tag, it's safe to clean the whole file
+            newValue = originalValue.replace(/(\r?\n){2,}/g, '\n');
+        }
+
+        if (originalValue !== newValue) {
+            const originalScrollTop = editor.scrollTop;
+            editor.value = newValue;
+            editor.scrollTop = originalScrollTop;
+            this.setUnsavedChanges(true);
+            this.updateLineNumbers();
+        }
     },
     
-    previewInNewTab() { // NEW
+    previewInNewTab() {
         const blob = new Blob([this.elements.editor.value], { type: 'text/html' });
         const url = URL.createObjectURL(blob);
         window.open(url, '_blank');
-        // The URL is temporary and will be released when the document is unloaded.
     },
     
     async openFile() {
@@ -347,6 +380,7 @@ const CodeEditor = {
             this.updateLineNumbers();
             this.elements.editor.scrollTop = 0;
             this.elements.editor.setSelectionRange(0, 0);
+            this.elements.editor.focus();
         } catch (err) {
             console.warn(this.lang.userAbortedOpen, err);
         }
@@ -390,6 +424,7 @@ const CodeEditor = {
             await writable.write(this.elements.editor.value);
             await writable.close();
             this.setUnsavedChanges(false);
+            this.elements.editor.focus();
         } catch (err) {
             console.error('Could not save file:', err);
             alert(this.lang.saveError);
@@ -415,7 +450,6 @@ const CodeEditor = {
     },
 
     // --- Search & Replace ---
-
     updateSearchResults() {
         const searchTerm = this.elements.findInput.value;
         this.elements.matchCountSpan.textContent = '';
@@ -483,7 +517,6 @@ const CodeEditor = {
     },
 
     // --- Event Handlers ---
-
     handleEditorInput() {
         if (!this.state.hasUnsavedChanges) {
             this.setUnsavedChanges(true);
@@ -554,8 +587,8 @@ const CodeEditor = {
             if (key === 'n') { e.preventDefault(); this.newFile(); }
             if (key === 'f') { e.preventDefault(); this.toggleModal('search'); }
             if (key === 'w') { e.preventDefault(); this.cleanWhitespace(); }
-            if (key === 'l') { e.preventDefault(); this.removeEmptyLines(); } // NEW
-            if (key === 'p') { e.preventDefault(); this.previewInNewTab(); } // NEW
+            if (key === 'l') { e.preventDefault(); this.removeEmptyLines(); }
+            if (key === 'p') { e.preventDefault(); this.previewInNewTab(); }
             if (key === 't') { e.preventDefault(); window.open(window.location.href, '_blank'); }
         }
     },
@@ -568,12 +601,11 @@ const CodeEditor = {
     },
 
     // --- UI & Utilities ---
-
     updateStaticUIText() {
         document.title = this.lang.title;
         const borderColor = getComputedStyle(document.documentElement).getPropertyValue('--border-color').trim();
         
-        const shortcuts = [ // NEW: Added Preview and Remove Empty Lines shortcuts
+        const shortcuts = [
             { key: 'Ctrl + O', action: this.lang.helpOpenFile },
             { key: 'Ctrl + S', action: this.lang.helpSaveFile },
             { key: 'Alt + N', action: this.lang.helpNewFile },
