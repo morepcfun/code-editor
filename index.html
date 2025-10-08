@@ -319,22 +319,30 @@ const CodeEditor = {
         this._modifyContent(/^\s*$\r?\n/gm, '');
     },
 
+    // MODIFIED: This function is now 100% safe from the HTML parser bug
     removeEmptyLines() {
         const editor = this.elements.editor;
         const originalValue = editor.value;
         let newValue = '';
 
+        // Define the closing script tag in a way that the HTML parser won't see it
+        const closingScriptTag = '</scr' + 'ipt>';
+        
         const scriptTagStart = originalValue.indexOf('<script>');
-        const scriptTagEnd = originalValue.lastIndexOf('</script>');
+        const scriptTagEnd = originalValue.lastIndexOf(closingScriptTag);
 
+        // Check if a script block exists to be protected
         if (scriptTagStart !== -1 && scriptTagEnd !== -1 && scriptTagEnd > scriptTagStart) {
             const beforeScript = originalValue.substring(0, scriptTagStart);
-            const scriptBlock = originalValue.substring(scriptTagStart, scriptTagEnd + '</script>'.length);
-            const afterScript = originalValue.substring(scriptTagEnd + '</script>'.length);
+            const scriptBlock = originalValue.substring(scriptTagStart, scriptTagEnd + closingScriptTag.length);
+            const afterScript = originalValue.substring(scriptTagEnd + closingScriptTag.length);
+
             const cleanedBefore = beforeScript.replace(/(\r?\n){2,}/g, '\n');
             const cleanedAfter = afterScript.replace(/(\r?\n){2,}/g, '\n');
+            
             newValue = cleanedBefore + scriptBlock + cleanedAfter;
         } else {
+            // If no script tag, it's safe to clean the whole file
             newValue = originalValue.replace(/(\r?\n){2,}/g, '\n');
         }
 
