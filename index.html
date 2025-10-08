@@ -3,13 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Code Editor for HTML, CSS & JS</title>
-<meta name="description" content="Minimalist Code Editor tailored for single-file projects consisting of HTML, CSS and JavaScript.">
-<meta name="author" content="Johnny Heggelund">
-<meta name="robots" content="index, follow">
-<link rel="canonical" href="https://morepcfun.github.io/coder/">
-<link rel="icon" href="data:image/png;base64,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">
-
+<title>Code Editor</title>
 <style>
 :root {
     --bg-color: #0d1117;
@@ -73,7 +67,7 @@ textarea::selection {
 }
 .modal {
     display: none; position: fixed; top: 50%; left: 50%;
-    transform: translate(-50%, -50%); width: 800px;
+    transform: translate(-50%, -50%); width: 450px;
     background-color: var(--bg-color); border: 1px solid var(--border-color);
     color: var(--text-color); z-index: 100; padding: 20px;
     box-shadow: 0 0 30px rgba(0, 0, 0, 0.5);
@@ -110,6 +104,28 @@ textarea::selection {
     transition: background-color 0.2s, border-color 0.2s;
 }
 #search-modal button:hover { background-color: #30363d; border-color: var(--accent-color); }
+
+/* NEW: CSS for the toast notification */
+#toast-notification {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: var(--border-color);
+    color: var(--text-color);
+    padding: 10px 20px;
+    border-radius: 5px;
+    z-index: 200;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.4s ease-in-out, visibility 0.4s ease-in-out;
+    font-size: 0.9em;
+}
+#toast-notification.show {
+    opacity: 1;
+    visibility: visible;
+}
+
 </style>
 </head>
 <body>
@@ -122,7 +138,6 @@ textarea::selection {
 <div id="help-modal" class="modal">
     <button id="help-modal-close-btn" class="modal-close-btn" aria-label="Close">×</button>
     <h1 id="help-main-title"></h1>
-    <p>I created this editor especially for those who like to create single-file projects with HTML, CSS and JavaScript. With carefully selected colors this is perfect for those who like a minimalist editor with colors that are easy on the eyes. A small note regarding the Alt+L function: This only works on HTML and CSS where it operates 100% safely, but it skips JavaScript code because in very rare cases it can break the code. &copy; Johnny Heggelund</p>
     <h2 id="help-title"></h2>
     <ul id="help-list"></ul>
 </div>
@@ -149,12 +164,15 @@ textarea::selection {
     </div>
 </div>
 
+<div id="toast-notification"></div>
+
 <script>
 const CodeEditor = {
     // Configuration and constants
     config: {
         debounceDelay: 150, // ms for debouncing inputs
         indentUnit: '  ',   // 2 spaces for indentation
+        toastDuration: 2500, // ms to show toast
     },
 
     // Application state
@@ -163,6 +181,7 @@ const CodeEditor = {
         fileName: 'Untitled',
         hasUnsavedChanges: false,
         searchResults: { term: '', indices: [], currentIndex: -1 },
+        toastTimer: null, // NEW: Timer for toast
     },
 
     // Cached DOM elements
@@ -240,6 +259,7 @@ const CodeEditor = {
             searchTitle: document.getElementById('search-title'),
             findLabelText: document.getElementById('find-label-text'),
             replaceLabel: document.getElementById('replace-label'),
+            toast: document.getElementById('toast-notification'), // NEW: Cache toast element
         };
     },
     
@@ -286,6 +306,16 @@ const CodeEditor = {
             this.elements.editor.focus();
         }
     },
+
+    // --- NEW: Toast Notification Feature ---
+    showToast(message) {
+        clearTimeout(this.state.toastTimer);
+        this.elements.toast.textContent = message;
+        this.elements.toast.classList.add('show');
+        this.state.toastTimer = setTimeout(() => {
+            this.elements.toast.classList.remove('show');
+        }, this.config.toastDuration);
+    },
     
     // --- Core Editor Features ---
 
@@ -301,32 +331,38 @@ const CodeEditor = {
             this.elements.lineNumbers.textContent = numbers;
         }
     },
-
-    _modifyContent(regex, replacement) {
+    
+    // MODIFIED: This function now shows a toast message
+    cleanWhitespace() {
         const editor = this.elements.editor;
         const originalValue = editor.value;
-        const newValue = originalValue.replace(regex, replacement);
+        const originalLines = (originalValue.match(/\n/g) || []).length;
+        
+        const newValue = originalValue.replace(/^\s*$\r?\n/gm, '');
 
         if (originalValue !== newValue) {
+            const newLines = (newValue.match(/\n/g) || []).length;
+            const linesRemoved = originalLines - newLines;
+            
             const originalScrollTop = editor.scrollTop;
             editor.value = newValue;
             editor.scrollTop = originalScrollTop;
             this.setUnsavedChanges(true);
             this.updateLineNumbers();
+            
+            const plural = linesRemoved === 1 ? 'line' : 'lines';
+            this.showToast(`Removed ${linesRemoved} whitespace ${plural}`);
         }
     },
 
-    cleanWhitespace() {
-        this._modifyContent(/^\s*$\r?\n/gm, '');
-    },
-
+    // MODIFIED: This function now shows a toast message
     removeEmptyLines() {
         const editor = this.elements.editor;
         const originalValue = editor.value;
+        const originalLines = (originalValue.match(/\n/g) || []).length;
         let newValue = '';
 
         const closingScriptTag = '</scr' + 'ipt>';
-        
         const scriptTagStart = originalValue.indexOf('<script>');
         const scriptTagEnd = originalValue.lastIndexOf(closingScriptTag);
 
@@ -334,21 +370,25 @@ const CodeEditor = {
             const beforeScript = originalValue.substring(0, scriptTagStart);
             const scriptBlock = originalValue.substring(scriptTagStart, scriptTagEnd + closingScriptTag.length);
             const afterScript = originalValue.substring(scriptTagEnd + closingScriptTag.length);
-
             const cleanedBefore = beforeScript.replace(/(\r?\n){2,}/g, '\n');
             const cleanedAfter = afterScript.replace(/(\r?\n){2,}/g, '\n');
-            
             newValue = cleanedBefore + scriptBlock + cleanedAfter;
         } else {
             newValue = originalValue.replace(/(\r?\n){2,}/g, '\n');
         }
 
         if (originalValue !== newValue) {
+            const newLines = (newValue.match(/\n/g) || []).length;
+            const linesRemoved = originalLines - newLines;
+            
             const originalScrollTop = editor.scrollTop;
             editor.value = newValue;
             editor.scrollTop = originalScrollTop;
             this.setUnsavedChanges(true);
             this.updateLineNumbers();
+
+            const plural = linesRemoved === 1 ? 'line' : 'lines';
+            this.showToast(`Removed ${linesRemoved} empty ${plural} (except in JavaScript)`);
         }
     },
     
@@ -469,8 +509,7 @@ const CodeEditor = {
             this.elements.matchCountSpan.textContent = `${this.state.searchResults.indices.length} ${this.lang.matches}`;
         }
     },
-
-    // MODIFIED: This function now centers the result on screen
+    
     findNext() {
         this.updateSearchResults();
         const { indices, term } = this.state.searchResults;
@@ -483,20 +522,13 @@ const CodeEditor = {
         editor.focus();
         editor.setSelectionRange(startIndex, startIndex + term.length);
 
-        // --- New scrolling logic ---
-        // 1. Find the line number of the match.
         const textUpToMatch = editor.value.substring(0, startIndex);
         const lineNumber = (textUpToMatch.match(/\n/g) || []).length;
-
-        // 2. Calculate the approximate pixel position of the line.
         const totalLines = (editor.value.match(/\n/g) || []).length + 1;
         const avgLineHeight = editor.scrollHeight / totalLines;
         const targetScrollTop = lineNumber * avgLineHeight;
-
-        // 3. Calculate the position to center the line in the viewport.
         const finalScrollTop = targetScrollTop - (editor.clientHeight / 2) + (avgLineHeight / 2);
 
-        // 4. Set the scroll position with a smooth animation.
         editor.scrollTo({
             top: finalScrollTop,
             behavior: 'smooth'
@@ -527,7 +559,16 @@ const CodeEditor = {
         const replaceTerm = this.elements.replaceInput.value;
         if (!term) return;
 
-        this._modifyContent(new RegExp(this.utils.escapeRegExp(term), 'gi'), replaceTerm);
+        const originalValue = this.elements.editor.value;
+        const newValue = originalValue.replace(new RegExp(this.utils.escapeRegExp(term), 'gi'), replaceTerm);
+
+        if (originalValue !== newValue) {
+            const originalScrollTop = this.elements.editor.scrollTop;
+            this.elements.editor.value = newValue;
+            this.elements.editor.scrollTop = originalScrollTop;
+            this.setUnsavedChanges(true);
+            this.updateSearchResults();
+        }
     },
 
     // --- Event Handlers ---
@@ -673,6 +714,5 @@ const CodeEditor = {
 window.addEventListener('load', () => CodeEditor.init());
 
 </script>
-    
 </body>
 </html>
