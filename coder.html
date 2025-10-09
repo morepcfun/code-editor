@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Code Editor</title>
+<style>
+html, body { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; }
+#editor {
+width: 100%; height: 100%; padding: 12px; box-sizing: border-box;
+background-color: #000000; color: #00FF00; caret-color: #00FF00;
+border: none; outline: none; resize: none;
+font-family: 'Consolas', 'Monaco', 'Lucida Console', monospace;
+font-size: 16px; line-height: 1.5;
+text-rendering: optimizeSpeed;
+}
+#toast {
+position: fixed; top: -50px; left: 50%; transform: translateX(-50%);
+padding: 10px 20px; background-color: #00FF00; color: #000000;
+border-radius: 5px; font-family: 'Consolas', 'Monaco', monospace;
+font-weight: bold; z-index: 1000; opacity: 0;
+transition: top 0.5s, opacity 0.5s;
+}
+#toast.show { top: 20px; opacity: 1; }
+#help-panel {
+position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+width: 350px; padding: 20px; background-color: #111;
+border: 2px solid #00FF00; color: #00FF00;
+font-family: 'Consolas', 'Monaco', monospace; z-index: 999;
+display: none;
+}
+#help-panel h2 { margin-top: 0; text-align: center; }
+#help-panel ul { list-style: none; padding: 0; }
+#help-panel li { margin-bottom: 10px; }
+#help-panel span { display: inline-block; width: 180px; font-weight: bold; }
+</style>
+</head>
+<body>
+<textarea id="editor" autofocus spellcheck="false"></textarea>
+<div id="toast"></div>
+<div id="help-panel">
+<h2>Shortcuts</h2>
+<ul>
+<li><span>Ctrl + S</span> Save file</li>
+<li><span>Ctrl + O</span> Open file</li>
+<li><span>Ctrl + D</span> Duplicate line</li>
+<li><span>Ctrl + K</span> Trim whitespace</li>
+<li><span>Ctrl + /</span> Toggle comment</li>
+<li><span>Ctrl + H</span> Show/Hide help</li>
+<li><span>Alt + Up/Down</span> Move line</li>
+<li><span>Tab</span> Indent</li>
+<li><span>Shift+Tab</span> Un-indent</li>
+</ul>
+</div>
+
+<script>
+const editor = document.getElementById('editor');
+const toast = document.getElementById('toast');
+const helpPanel = document.getElementById('help-panel');
+let fileHandle = null;
+let toastTimeout;
+
+document.addEventListener('keydown', async (e) => {
+if (e.key === 'Tab') {
+e.preventDefault();
+handleTab(e.shiftKey);
+return;
+}
+
+if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+e.preventDefault();
+moveLine(e.key === 'ArrowUp' ? 'up' : 'down');
+return;
+}
+
+if (e.ctrlKey) {
+switch (e.key.toLowerCase()) {
+case 's': e.preventDefault(); await saveFile(); break;
+case 'o': e.preventDefault(); await openFile(); break;
+case 'k': e.preventDefault(); trimTrailingWhitespace(); break;
+case 'h': e.preventDefault(); toggleHelpPanel(); break;
+case 'd': e.preventDefault(); duplicateLine(); break;
+case '/': e.preventDefault(); toggleComment(); break;
+}
+}
+});
+
+function showToast(message) {
+clearTimeout(toastTimeout);
+toast.textContent = message;
+toast.classList.add('show');
+toastTimeout = setTimeout(() => {
+toast.classList.remove('show');
+}, 2000);
+}
+
+function toggleHelpPanel() {
+const isVisible = helpPanel.style.display === 'block';
+helpPanel.style.display = isVisible ? 'none' : 'block';
+}
+
+function getLineInfo() {
+const start = editor.selectionStart;
+const end = editor.selectionEnd;
+const value = editor.value;
+const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+const nextLineBreak = value.indexOf('\n', end);
+const lineEnd = nextLineBreak === -1 ? value.length : nextLineBreak;
+return { start, end, value, lineStart, lineEnd };
+}
+
+function duplicateLine() {
+const { value, lineStart, lineEnd } = getLineInfo();
+const lineContent = value.substring(lineStart, lineEnd);
+const contentToInsert = (lineEnd === value.length ? '\n' : '') + lineContent;
+
+editor.value = value.substring(0, lineEnd) + contentToInsert + value.substring(lineEnd);
+
+const newCursorPos = lineEnd + contentToInsert.length;
+editor.selectionStart = newCursorPos;
+editor.selectionEnd = newCursorPos;
+}
+
+function moveLine(direction) {
+const { start, end, value, lineStart, lineEnd } = getLineInfo();
+const block = value.substring(lineStart, lineEnd + 1);
+
+if (direction === 'up' && lineStart > 0) {
+const prevLineStart = value.lastIndexOf('\n', lineStart - 2) + 1;
+const prevBlock = value.substring(prevLineStart, lineStart);
+editor.value = value.substring(0, prevLineStart) + block + prevBlock + value.substring(lineEnd + 1);
+editor.selectionStart = start - prevBlock.length;
+editor.selectionEnd = end - prevBlock.length;
+} else if (direction === 'down' && lineEnd < value.length) {
+const nextLineStart = lineEnd + 1;
+const nextLineEnd = value.indexOf('\n', nextLineStart);
+const effectiveNextLineEnd = nextLineEnd === -1 ? value.length : nextLineEnd;
+const nextBlock = value.substring(nextLineStart, effectiveNextLineEnd + 1);
+editor.value = value.substring(0, lineStart) + nextBlock + block + value.substring(effectiveNextLineEnd + 1);
+editor.selectionStart = start + nextBlock.length;
+editor.selectionEnd = end + nextBlock.length;
+}
+}
+
+function toggleComment() {
+const { start, end, value } = getLineInfo();
+const lineStart = value.lastIndexOf('\n', start - 1) + 1;
+const selectedBlock = value.substring(lineStart, end);
+const lines = selectedBlock.split('\n');
+const commentMarker = '// ';
+let newSelectionLength = 0;
+
+const allLinesAreCommented = lines.every(line => line.trim().startsWith('//') || line.trim() === '');
+
+const newLines = lines.map(line => {
+if (line.trim() === '') return line;
+if (allLinesAreCommented) {
+return line.replace(commentMarker, '');
+} else {
+return commentMarker + line;
+}
+}).join('\n');
+
+editor.value = value.substring(0, lineStart) + newLines + value.substring(end);
+
+if (allLinesAreCommented) {
+newSelectionLength = newLines.length - lines.length * commentMarker.length;
+} else {
+newSelectionLength = newLines.length + lines.length * commentMarker.length;
+}
+
+editor.selectionStart = lineStart;
+editor.selectionEnd = lineStart + newLines.length;
+}
+
+function trimTrailingWhitespace() {
+const originalValue = editor.value;
+const newValue = originalValue.split('\n').map(line => line.trimEnd()).join('\n');
+if (originalValue !== newValue) {
+const charsRemoved = originalValue.length - newValue.length;
+editor.value = newValue;
+if (charsRemoved > 0) {
+showToast(`Removed ${charsRemoved} whitespace characters`);
+}
+}
+}
+
+function handleTab(isShift) {
+const start = editor.selectionStart;
+const end = editor.selectionEnd;
+const value = editor.value;
+const indent = '  ';
+if (start !== end) {
+let lineStart = value.lastIndexOf('\n', start - 1) + 1;
+const selectedBlock = value.substring(lineStart, end);
+let newBlock = '';
+let change = 0;
+if (isShift) {
+newBlock = selectedBlock.split('\n').map(line => {
+if (line.startsWith(indent)) { change--; return line.substring(indent.length); }
+return line;
+}).join('\n');
+} else {
+newBlock = selectedBlock.split('\n').map(line => {
+if (line.length > 0) { change++; return indent + line; }
+return line;
+}).join('\n');
+}
+editor.value = value.substring(0, lineStart) + newBlock + value.substring(end);
+editor.selectionStart = lineStart;
+editor.selectionEnd = end + (change * indent.length);
+} else {
+if (isShift) {
+let lineStart = value.lastIndexOf('\n', start - 1) + 1;
+if (value.substring(lineStart, lineStart + indent.length) === indent) {
+editor.value = value.substring(0, lineStart) + value.substring(lineStart + indent.length);
+editor.selectionStart = editor.selectionEnd = start - indent.length;
+}
+} else {
+editor.value = value.substring(0, start) + indent + value.substring(end);
+editor.selectionStart = editor.selectionEnd = start + indent.length;
+}
+}
+}
+
+async function openFile() {
+try {
+const [handle] = await window.showOpenFilePicker();
+fileHandle = handle;
+const file = await fileHandle.getFile();
+const content = await file.text();
+editor.value = content;
+document.title = file.name;
+} catch (err) { console.log('File open dialog was cancelled.'); }
+}
+
+async function saveFile() {
+try {
+trimTrailingWhitespace();
+if (!fileHandle) {
+fileHandle = await window.showSaveFilePicker({
+suggestedName: 'index.html',
+types: [
+{ description: 'HTML Files', accept: { 'text/html': ['.html', '.htm'] } },
+{ description: 'CSS Files', accept: { 'text/css': ['.css'] } },
+{ description: 'JavaScript Files', accept: { 'text/javascript': ['.js'] } },
+{ description: 'Text Files', accept: { 'text/plain': ['.txt'] } },
+],
+});
+}
+const writable = await fileHandle.createWritable();
+await writable.write(editor.value);
+await writable.close();
+document.title = fileHandle.name;
+} catch (err) { console.log('File save dialog was cancelled.'); }
+}
+</script>
+</body>
+</html>
