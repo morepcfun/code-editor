@@ -398,9 +398,10 @@ this.setUnsavedChanges(false);
 this.updateLineNumbers();
 this.elements.editor.scrollTop = 0;
 this.elements.editor.setSelectionRange(0, 0);
-this.elements.editor.focus();
 } catch (err) {
 if (err.name !== 'AbortError') console.warn(this.lang.userAbortedOpen, err);
+} finally {
+setTimeout(() => this.elements.editor.focus(), 0);
 }
 },
 
