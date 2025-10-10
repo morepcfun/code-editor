@@ -271,7 +271,7 @@ toast: document.getElementById('toast-notification'),
 bindEventListeners() {
 const { editor, findInput, helpModalCloseBtn, searchModalCloseBtn, findNextBtn, replaceBtn, replaceAllBtn } = this.elements;
 
-editor.addEventListener('scroll', () => { lineNumbers.scrollTop = editor.scrollTop });
+editor.addEventListener('scroll', () => { this.elements.lineNumbers.scrollTop = editor.scrollTop });
 editor.addEventListener('input', this.handleEditorInput.bind(this));
 editor.addEventListener('keydown', this.handleEditorKeyDown.bind(this));
 
