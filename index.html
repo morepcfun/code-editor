@@ -242,12 +242,7 @@ if (localStorage.getItem('lineNumbersHidden') === 'true') {
 this.elements.editorContainer.classList.add('line-numbers-hidden');
 }
 
-if (!localStorage.getItem('editorVisited')) {
 this.toggleModal('help');
-localStorage.setItem('editorVisited', 'true');
-} else {
-this.elements.editor.focus();
-}
 },
 
 cacheDOMElements() {
