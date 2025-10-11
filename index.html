@@ -329,40 +329,39 @@ this.elements.lineNumbers.textContent = numbers;
 },
 
 _safeModifyOutsideScript(regex, replacement) {
-const editor = this.elements.editor;
-const originalValue = editor.value;
-let newValue = '';
+    const editor = this.elements.editor;
+    const originalValue = editor.value;
+    const scriptSplitRegex = /(<script[\s\S]*?>[\s\S]*?<\/script>)/gi;
+    const parts = originalValue.split(scriptSplitRegex);
+    let newValue = "";
+    for (let i = 0; i < parts.length; i++) {
+        if (i % 2 === 0) {
 
-const closingScriptTag = '</scr' + 'ipt>';
-const scriptTagStart = originalValue.indexOf('<script>');
-const scriptTagEnd = originalValue.lastIndexOf(closingScriptTag);
+            newValue += parts[i].replace(regex, replacement);
+        } else {
+            newValue += parts[i];
+        }
+    }
 
-if (scriptTagStart !== -1 && scriptTagEnd !== -1 && scriptTagEnd > scriptTagStart) {
-const beforeScript = originalValue.substring(0, scriptTagStart);
-const scriptBlock = originalValue.substring(scriptTagStart, scriptTagEnd + closingScriptTag.length);
-const afterScript = originalValue.substring(scriptTagEnd + closingScriptTag.length);
+    if (originalValue !== newValue) {
+        const originalScrollTop = editor.scrollTop;
+        const originalLines = (originalValue.match(/\n/g) || []).length;
+        
+        editor.value = newValue;
+        editor.scrollTop = originalScrollTop;
+        
+        const newLines = (newValue.match(/\n/g) || []).length;
+        const linesRemoved = originalLines - newLines;
 
-const cleanedBefore = beforeScript.replace(regex, replacement);
-const cleanedAfter = afterScript.replace(regex, replacement);
+        this.setUnsavedChanges(true);
+        this.updateLineNumbers();
 
-newValue = cleanedBefore + scriptBlock + cleanedAfter;
-} else {
-newValue = originalValue.replace(regex, replacement);
-}
-
-if (originalValue !== newValue) {
-const originalScrollTop = editor.scrollTop;
-editor.value = newValue;
-editor.scrollTop = originalScrollTop;
-this.setUnsavedChanges(true);
-this.updateLineNumbers();
-
-const linesRemoved = (originalValue.match(/\n/g) || []).length - (newValue.match(/\n/g) || []).length;
-return linesRemoved;
-}
-return 0;
+        return linesRemoved;
+    }
+    
+    return 0;
 },
-
+  
 cleanWhitespace() {
 const linesRemoved = this._safeModifyOutsideScript(/^\s*$\r?\n/gm, '');
 if (linesRemoved > 0) {
